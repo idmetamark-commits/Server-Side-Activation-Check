@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Tambah Token</title>
+    
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: grid;
+            place-items: center;
+            min-height: 90vh;
+            background-color: #f4f4f9;
+            
+            /* 1. Tambahkan margin/padding agar container tidak menempel di tepi layar */
+            margin: 0;
+            padding: 1rem;
+            box-sizing: border-box; 
+        }
+        .container {
+            background: #fff;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+
+            /* 2. Ganti 'min-width' menjadi 'width: 100%' + 'max-width' */
+            /* Ini membuat container mengisi layar kecil, tapi tidak terlalu lebar di desktop */
+            width: 100%;
+            max-width: 400px; /* Batas lebar maksimum di desktop */
+            box-sizing: border-box;
+        }
+        h2 {
+            text-align: center;
+            margin-top: 0;
+            color: #333;
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #555;
+        }
+        /* 3. Ganti 'width: 93%' menjadi '100%' */
+        /* box-sizing akan memastikan padding tidak merusak layout */
+        input[type="text"], input[type="password"] {
+            width: 100%; 
+            padding: 0.75rem;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 1rem;
+            box-sizing: border-box; /* Wajib ada */
+        }
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 8px;
+            background-color: #007bff;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #respons {
+            margin-top: 1.5rem;
+            text-align: center;
+            font-weight: 600;
+            /* 4. Mencegah teks error yang panjang merusak layout */
+            word-break: break-all; 
+        }
+        .sukses { color: green; }
+        .gagal { color: red; }
+    </style>
+    </head>
+<body>
+    <div class="container">
+        <h2>Panel Aktivasi Token</h2>
+        <div class="form-group">
+            <label for="tokenAsli">Bot Token (Teks Asli)</label>
+            <input type="text" id="tokenAsli" placeholder="Paste token bot asli (cth: 1234:ABCD...)">
+        </div>
+        <div class="form-group">
+            <label for="masterKey">Master Key</label>
+            <input type="password" id="masterKey" placeholder="Kunci rahasia server Anda...">
+        </div>
+        <button onclick="tambahToken()">Tambah Token</button>
+        <div id="respons"></div>
+    </div>
+
+    <script>
+        async function tambahToken() {
+            const tokenAsli = document.getElementById('tokenAsli').value;
+            const masterKey = document.getElementById('masterKey').value;
+            const responsEl = document.getElementById('respons');
+
+            responsEl.textContent = 'Memproses...';
+            responsEl.className = '';
+
+            try {
+                const response = await fetch('/addtoken', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ tokenAsli, masterKey })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    responsEl.textContent = data.pesan;
+                    responsEl.className = 'sukses';
+                    document.getElementById('tokenAsli').value = '';
+                } else {
+                    responsEl.textContent = `Error: ${data.pesan}`;
+                    responsEl.className = 'gagal';
+                }
+            } catch (error) {
+                responsEl.textContent = 'Error koneksi ke server.';
+                responsEl.className = 'gagal';
+            }
+        }
+    </script>
+</body>
+</html>
