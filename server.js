@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const chalk = require('chalk');
+const { encrypt } = require('./helper');
 
 const app = express();
 const PORT = 3000;
@@ -13,10 +14,12 @@ app.set('view engine', 'ejs');
 // --- PENGATURAN DATABASE & MASTER KEY ---
 const DB_BASENAME = 'token-db';
 const MASTER_KEY_FILE = 'master-key.json';
+const JIN_KEY_FILE = 'jin-key.json';
 
 let TOKEN_DB_FILE;
 let dbPath;
 let MASTER_KEY_SERVER;
+let JIN_KEY_SERVER;
 
 const buatHashSha256 = (teks) => {
     return crypto.createHash('sha256').update(teks).digest('hex');
@@ -42,6 +45,19 @@ function inisialisasiServer() {
             console.log(chalk.red.bold("===================================================\n"));
         }
 
+        const jinKeyPath = path.join(__dirname, JIN_KEY_FILE);
+        if (fs.existsSync(jinKeyPath)) {
+            const keyData = fs.readFileSync(jinKeyPath, 'utf8');
+            JIN_KEY_SERVER = JSON.parse(keyData).jinKey;
+            if (!JIN_KEY_SERVER) throw new Error(`File '${JIN_KEY_FILE}' ada tapi kuncinya kosong!`);
+            console.log(chalk.green(`JIN_KEY (Gemini) berhasil dimuat.`));
+        } else {
+            console.error(chalk.red(`FATAL: File '${JIN_KEY_FILE}' tidak ditemukan!`));
+            console.log(chalk.yellow(`Silakan buat file '${JIN_KEY_FILE}' dan isi dengan:`));
+            console.log(chalk.white(`{ "jinKey": "AIzaSy..." }`));
+            process.exit(1);
+        }
+
         const dirFiles = fs.readdirSync(__dirname);
         const existingDbFile = dirFiles.find(file => 
             file.startsWith(DB_BASENAME) && file.endsWith('.json')
@@ -55,7 +71,6 @@ function inisialisasiServer() {
             const timestamp = Date.now();
             TOKEN_DB_FILE = `${DB_BASENAME}-${timestamp}.json`;
             dbPath = path.join(__dirname, TOKEN_DB_FILE);
-            
             console.log(chalk.yellow(`Database token tidak ditemukan. Membuat: '${TOKEN_DB_FILE}'`));
             fs.writeFileSync(dbPath, JSON.stringify({}, null, 2), 'utf8');
         }
@@ -88,7 +103,8 @@ function writeDatabase(data) {
 // --- MIDDLEWARE ---
 app.use(express.json());
 
-app.get('/panel-admin', (req, res) => {
+//app.get('/panel-admin', (req, res) => {
+app.get('/', (req, res) => {
     res.render('admin');
 });
 
@@ -110,13 +126,36 @@ app.post('/validasi-token', (req, res) => {
         db[hashTokenDariBot].terakhirDilihat = new Date().toISOString(); 
         writeDatabase(db);
         
-        res.json({ 
-            status: 'ok',
-            session_secret: sessionSecret
-        });
-
+        const payload = { 
+            status: 'ok',
+            session_secret: sessionSecret,
+            jin_key: JIN_KEY_SERVER
+        };
+        const encryptedPayload = encrypt(JSON.stringify(payload));
+        res.json({ payload: encryptedPayload });
     } else {
         console.log(chalk.red(`-> Validasi GAGAL untuk hash: ${hashTokenDariBot.substring(0, 8)}...`));
+        res.json({ status: 'ditolak' });
+    }
+});
+
+app.post('/heartbeat', (req, res) => {
+    const hashTokenDariBot = req.body.tokenHash;
+    const db = readDatabase();
+
+    if (db.hasOwnProperty(hashTokenDariBot)) {
+        const newSessionSecret = crypto.randomBytes(16).toString('hex');
+        db[hashTokenDariBot].terakhirDilihat = new Date().toISOString(); // Update lagi
+        writeDatabase(db);
+        
+        const payload = { 
+            status: 'ok',
+            session_secret: newSessionSecret 
+        };
+        const encryptedPayload = encrypt(JSON.stringify(payload));
+        res.json({ payload: encryptedPayload });
+    } else {
+        console.log(chalk.red(`-> Heartbeat GAGAL: Token ${hashTokenDariBot.substring(0, 8)}... telah dihapus.`));
         res.json({ status: 'ditolak' });
     }
 });
